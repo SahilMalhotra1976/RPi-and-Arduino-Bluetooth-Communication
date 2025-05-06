@@ -1,0 +1,49 @@
+import time
+import RPi.GPIO as GPIO
+from bluepy.btle import Peripheral, UUID
+
+# Constants
+LED_PIN = 18
+PWM_FREQUENCY = 1000  # 1 kHz
+ARDUINO_MAC = "EC:62:60:8F:5A:BA"  # Replace with your Arduino's MAC address
+
+SERVICE_UUID = UUID("19B10000-E8F2-537E-4F6C-D104768A1214")
+CHAR_UUID = UUID("19B10001-E8F2-537E-4F6C-D104768A1214")
+
+# GPIO Setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED_PIN, GPIO.OUT)
+pwm = GPIO.PWM(LED_PIN, PWM_FREQUENCY)
+pwm.start(0)  # Start with LED off
+
+# Bluetooth Connection
+try:
+    print("Connecting to Arduino...")
+    peripheral = Peripheral(ARDUINO_MAC)
+    service = peripheral.getServiceByUUID(SERVICE_UUID)
+    characteristic = service.getCharacteristics(CHAR_UUID)[0]
+    print("Connected. Starting light monitoring...\n")
+
+    while True:
+        light_level = characteristic.read()[0]  # Read light intensity (0–255)
+        print(f"Light intensity: {light_level} lux")
+
+        # Convert to PWM duty cycle (0–100%)
+        brightness = min(int(light_level / 255 * 100), 100)
+        pwm.ChangeDutyCycle(brightness)
+        print(f"LED brightness: {brightness}%\n")
+
+        time.sleep(0.5)
+
+except KeyboardInterrupt:
+    print("Interrupted by user. Cleaning up...")
+
+finally:
+    pwm.stop()
+    GPIO.cleanup()
+    try:
+        peripheral.disconnect()
+    except:
+        pass
+    print("Clean exit.")
+
